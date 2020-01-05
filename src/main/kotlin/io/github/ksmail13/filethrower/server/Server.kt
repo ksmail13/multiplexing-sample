@@ -2,9 +2,11 @@ package io.github.ksmail13.filethrower.server
 
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import java.lang.Exception
 import java.net.InetSocketAddress
 import java.net.StandardSocketOptions
 import java.nio.ByteBuffer
+import java.nio.channels.SelectionKey
 import java.nio.channels.Selector
 import java.nio.channels.ServerSocketChannel
 import java.nio.channels.SocketChannel
@@ -47,46 +49,54 @@ class Server(private val option: ServerOption) : Runnable {
             logger.trace("select {} sockets", select)
 
             selector.select(option.timeout.toLong()) { selected ->
-                if (!selected.isValid) {
-                    selected.channel().close()
-                }
-                if (selected.isAcceptable) {
-                    val channel: ServerSocketChannel = selected.channel() as ServerSocketChannel
-                    selector.registerRead(channel.accept())
-                }
-                if (selected.isReadable) {
-                    val socketChannel = selected.channel() as SocketChannel
-                    when (val attachment = selected.attachment()) {
-                        null -> selected.attach(ConnectionContext.init(socketChannel))
-                        ConnectionContext.isEos(attachment) -> {
-                            logger.debug("close {}", socketChannel.remoteAddress)
-                            socketChannel.close()
-                        }
-                        is LengthContext -> {
-                            if (attachment.complete()) {
-                                selected.attach(attachment.toDataContext())
-                            } else {
-                                attachment.read(socketChannel)
-                            }
-                        }
-                        else -> {
-                            val dataContext = attachment as DataContext
-                            val context = dataContext.read(socketChannel)
-                            if (context.complete()) {
-                                val string = String(context.data().array())
-                                logger.info("receive : {}", string)
-                                socketChannel.write(ByteBuffer.wrap(string.toByteArray()))
-                            } else {
-                                selected.attach(context)
-                            }
-                        }
-                    }
+                try {
+                    handleEvent(selected)
+                } catch (e: Exception) {
+                    logger.debug("Error occurred", e)
                 }
             }
         }
 
         logger.info("server down")
         selector.keys().forEach { it.channel().close() }
+    }
+
+    private fun handleEvent(selected: SelectionKey) {
+        if (!selected.isValid) {
+            selected.channel().close()
+        }
+        if (selected.isAcceptable) {
+            val channel: ServerSocketChannel = selected.channel() as ServerSocketChannel
+            selector.registerRead(channel.accept())
+        }
+        if (selected.isReadable) {
+            val socketChannel = selected.channel() as SocketChannel
+            when (val attachment = selected.attachment()) {
+                null -> selected.attach(ConnectionContext.init(socketChannel))
+                ConnectionContext.isEos(attachment) -> {
+                    logger.debug("close {}", socketChannel.remoteAddress)
+                    socketChannel.close()
+                }
+                is LengthContext -> {
+                    if (attachment.complete()) {
+                        selected.attach(attachment.toDataContext())
+                    } else {
+                        attachment.read(socketChannel)
+                    }
+                }
+                else -> {
+                    val dataContext = attachment as DataContext
+                    val context = dataContext.read(socketChannel)
+                    if (context.complete()) {
+                        val string = String(context.data().array())
+                        logger.info("receive : {}", string)
+                        socketChannel.write(ByteBuffer.wrap(string.toByteArray()))
+                    } else {
+                        selected.attach(context)
+                    }
+                }
+            }
+        }
     }
 
     fun stop() {
