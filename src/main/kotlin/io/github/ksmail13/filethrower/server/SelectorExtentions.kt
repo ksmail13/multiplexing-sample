@@ -1,9 +1,10 @@
 package io.github.ksmail13.filethrower.server
 
-import java.nio.channels.SelectableChannel
-import java.nio.channels.SelectionKey
-import java.nio.channels.Selector
-import java.nio.channels.ServerSocketChannel
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+import java.nio.channels.*
+
+private val logger: Logger = LoggerFactory.getLogger(Selector::class.java)
 
 fun Selector.register(serverSocketChannel: SelectableChannel, option: Int) {
     serverSocketChannel.register(this, option)
@@ -11,19 +12,25 @@ fun Selector.register(serverSocketChannel: SelectableChannel, option: Int) {
 
 fun Selector.registerAccept(serverSocketChannel: ServerSocketChannel) {
     this.register(serverSocketChannel, SelectionKey.OP_ACCEPT)
+    logger.debug("accept socket")
 }
 
 fun Selector.registerRead(socketChannel: SelectableChannel) {
     socketChannel.configureBlocking(false)
     this.register(socketChannel, SelectionKey.OP_READ)
+    if (socketChannel is SocketChannel) {
+        logger.debug("register read socket({})", socketChannel.remoteAddress)
+    }
 }
 
 fun Selector.select(wait: Long, handler: (SelectionKey) -> Unit) {
     this.select(wait)
 
     val selectedKeys = this.selectedKeys()
-    selectedKeys.forEach {
-        handler(it)
-        selectedKeys.remove(it)
+
+    val iterator = selectedKeys.iterator()
+    while(iterator.hasNext()) {
+        handler(iterator.next())
+        iterator.remove()
     }
 }

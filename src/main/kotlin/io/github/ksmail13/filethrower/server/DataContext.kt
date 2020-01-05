@@ -9,13 +9,13 @@ import java.nio.channels.SocketChannel
 data class DataContext(
     val size: Int,
     val byteBuffer: ByteBuffer = ByteBuffer.allocate(size),
-    val already: Int = 0
-) :
-    ConnectionContext<ByteBuffer> {
+    val already: Int = 0,
+    val lastReadByte: Int = already
+) : ConnectionContext<ByteBuffer> {
 
     override fun read(socketChannel: SocketChannel): ConnectionContext<ByteBuffer> {
         val read = socketChannel.read(byteBuffer)
-        return DataContext(size, byteBuffer, already + read)
+        return DataContext(size, byteBuffer, already + read, read)
     }
 
     override fun complete(): Boolean {
@@ -24,7 +24,12 @@ data class DataContext(
 
     override fun data(): ByteBuffer {
         throwIfUnComplete()
+        byteBuffer.flip()
         return byteBuffer
+    }
+
+    override fun lastReadByte(): Int {
+        return lastReadByte
     }
 
 }

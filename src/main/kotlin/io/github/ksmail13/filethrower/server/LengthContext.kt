@@ -6,7 +6,7 @@ import java.nio.channels.SocketChannel
 /**
  * 패킷 길이를 확인하는 context
  */
-data class LengthContext(val byteBuffer: ByteBuffer, val readed: Int) :
+data class LengthContext(val byteBuffer: ByteBuffer, val readBytes: Int, val lastRead: Int = readBytes) :
     ConnectionContext<Int> {
     companion object {
         const val SIZE = 4
@@ -14,26 +14,28 @@ data class LengthContext(val byteBuffer: ByteBuffer, val readed: Int) :
 
     override fun data(): Int {
         throwIfUnComplete()
-        return byteBuffer.int
+        byteBuffer.flip()
+        return byteBuffer.getInt(0)
     }
 
     override fun read(socketChannel: SocketChannel): ConnectionContext<Int> {
-        val remain = SIZE - readed
+        val remain = SIZE - readBytes
         val buffer = ByteBuffer.allocate(remain)
         val read = socketChannel.read(buffer)
 
-        return LengthContext(
-            byteBuffer.put(buffer),
-            read + this.readed
-        )
+        return LengthContext(byteBuffer.put(buffer), read + this.readBytes, read)
     }
 
     override fun complete(): Boolean {
-        return readed == SIZE
+        return readBytes == SIZE
     }
 
     fun toDataContext(): DataContext {
         return DataContext(data())
+    }
+
+    override fun lastReadByte(): Int {
+        return lastRead
     }
 
 }
