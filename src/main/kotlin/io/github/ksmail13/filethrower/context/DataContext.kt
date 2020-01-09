@@ -1,5 +1,6 @@
-package io.github.ksmail13.filethrower.server
+package io.github.ksmail13.filethrower.context
 
+import io.github.ksmail13.nio.context.ConnectionContext
 import java.nio.ByteBuffer
 import java.nio.channels.SocketChannel
 
@@ -30,6 +31,10 @@ data class DataContext(
 
     override fun lastReadByte(): Int {
         return lastReadByte
+    }
+
+    override fun next(): ConnectionContext<*> {
+        return this
     }
 
 }

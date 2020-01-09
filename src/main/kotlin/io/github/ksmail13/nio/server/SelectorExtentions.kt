@@ -1,4 +1,4 @@
-package io.github.ksmail13.filethrower.server
+package io.github.ksmail13.nio.server
 
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory

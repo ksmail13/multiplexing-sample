@@ -1,8 +1,11 @@
-package io.github.ksmail13.filethrower.server
+package io.github.ksmail13.nio.server
 
+import io.github.ksmail13.filethrower.context.FileThrowerContext
+import io.github.ksmail13.nio.context.ConnectionContext
+import io.github.ksmail13.nio.context.ContextFactory
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import java.lang.Exception
+import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.StandardSocketOptions
 import java.nio.ByteBuffer
@@ -11,7 +14,11 @@ import java.nio.channels.Selector
 import java.nio.channels.ServerSocketChannel
 import java.nio.channels.SocketChannel
 
-class Server(private val option: ServerOption) : Runnable {
+class Server(
+    private val option: ServerOption,
+    private val contextFactory: ContextFactory<*>,
+    private val resultHandler: (ByteBuffer, SocketChannel) -> Unit
+) : Runnable {
     companion object {
         private val logger: Logger = LoggerFactory.getLogger(Server::class.java)
     }
@@ -51,6 +58,9 @@ class Server(private val option: ServerOption) : Runnable {
             selector.select(option.timeout.toLong()) { selected ->
                 try {
                     handleEvent(selected)
+                } catch (e: IOException) {
+                    logger.debug("connection error", e)
+                    selected.channel().close()
                 } catch (e: Exception) {
                     logger.debug("Error occurred", e)
                 }
@@ -72,28 +82,23 @@ class Server(private val option: ServerOption) : Runnable {
         if (selected.isReadable) {
             val socketChannel = selected.channel() as SocketChannel
             when (val attachment = selected.attachment()) {
-                null -> selected.attach(ConnectionContext.init(socketChannel))
-                ConnectionContext.isEos(attachment) -> {
-                    logger.debug("close {}", socketChannel.remoteAddress)
-                    socketChannel.close()
-                }
-                is LengthContext -> {
-                    if (attachment.complete()) {
-                        selected.attach(attachment.toDataContext())
+                null -> selected.attach(contextFactory.createContext(socketChannel))
+                is FileThrowerContext -> {
+                    if (ConnectionContext.isEos(attachment)) {
+                        logger.debug("close {}", socketChannel.remoteAddress)
+                        socketChannel.close()
+                        return
+                    }
+                    val read = attachment.read(socketChannel)
+                    if (read.complete()) {
+                        resultHandler((read as FileThrowerContext).data(), socketChannel)
+                        selected.attach(null)
                     } else {
-                        attachment.read(socketChannel)
+                        selected.attach(read)
                     }
                 }
                 else -> {
-                    val dataContext = attachment as DataContext
-                    val context = dataContext.read(socketChannel)
-                    if (context.complete()) {
-                        val string = String(context.data().array())
-                        logger.info("receive : {}", string)
-                        socketChannel.write(ByteBuffer.wrap(string.toByteArray()))
-                    } else {
-                        selected.attach(context)
-                    }
+                    throw IllegalStateException("Unknown type ${attachment::class.java.simpleName}")
                 }
             }
         }

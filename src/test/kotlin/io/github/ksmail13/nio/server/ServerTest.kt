@@ -1,5 +1,7 @@
-package io.github.ksmail13.filethrower.server
+package io.github.ksmail13.nio.server
 
+import io.github.ksmail13.filethrower.context.FileThrowerContext
+import io.github.ksmail13.filethrower.context.FileThrowerContextFactory
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeAll
@@ -16,10 +18,14 @@ internal class ServerTest {
         private var target: Server? = null
         private val logger: Logger = LoggerFactory.getLogger(ServerTest::class.java)
 
-        @BeforeAll
+        /*@BeforeAll
         @JvmStatic
         fun init() {
-            target = Server(ServerOption(timeout = 500))
+            target = Server(ServerOption(timeout = 500), FileThrowerContextFactory())
+            { msg, channel ->
+                logger.info("receive {}", msg)
+                channel.write(ByteBuffer.wrap(msg.toByteArray()))
+            }
             target?.runOnBackground()
             Thread.sleep(1000)
         }
@@ -29,7 +35,7 @@ internal class ServerTest {
         fun finish() {
             Thread.sleep(1000)
             target?.stop()
-        }
+        }*/
     }
 
     @Test

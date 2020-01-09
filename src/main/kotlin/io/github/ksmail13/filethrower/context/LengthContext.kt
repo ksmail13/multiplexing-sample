@@ -1,5 +1,6 @@
-package io.github.ksmail13.filethrower.server
+package io.github.ksmail13.filethrower.context
 
+import io.github.ksmail13.nio.context.ConnectionContext
 import java.nio.ByteBuffer
 import java.nio.channels.SocketChannel
 
@@ -18,24 +19,28 @@ data class LengthContext(val byteBuffer: ByteBuffer, val readBytes: Int, val las
         return byteBuffer.getInt(0)
     }
 
-    override fun read(socketChannel: SocketChannel): ConnectionContext<Int> {
+    override fun read(socketChannel: SocketChannel): ConnectionContext<*> {
         val remain = SIZE - readBytes
         val buffer = ByteBuffer.allocate(remain)
         val read = socketChannel.read(buffer)
 
-        return LengthContext(byteBuffer.put(buffer), read + this.readBytes, read)
+        return if (complete()) {
+            next()
+        } else {
+            LengthContext(byteBuffer.put(buffer), read + this.readBytes, read)
+        }
     }
 
     override fun complete(): Boolean {
-        return readBytes == SIZE
-    }
-
-    fun toDataContext(): DataContext {
-        return DataContext(data())
+        return readBytes == SIZE && byteBuffer.limit() == SIZE
     }
 
     override fun lastReadByte(): Int {
         return lastRead
+    }
+
+    override fun next(): ConnectionContext<*> {
+        return DataContext(data())
     }
 
 }
