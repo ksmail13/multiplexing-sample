@@ -15,18 +15,20 @@ import java.nio.channels.SocketChannel
 internal class ServerTest {
 
     companion object {
-        private var target: Server? = null
+        private var target: RxServer? = null
         private val logger: Logger = LoggerFactory.getLogger(ServerTest::class.java)
 
-        /*@BeforeAll
+        @BeforeAll
         @JvmStatic
         fun init() {
-            target = Server(ServerOption(timeout = 500), FileThrowerContextFactory())
-            { msg, channel ->
+            target = RxServer(ServerOption(timeout = 500), FileThrowerContextFactory())
+
+            target?.runRx()?.subscribe({
+                (msgBuf, channel) ->
+                val msg = String(msgBuf.array())
                 logger.info("receive {}", msg)
                 channel.write(ByteBuffer.wrap(msg.toByteArray()))
-            }
-            target?.runOnBackground()
+            }, { t -> logger.error("error", t) })
             Thread.sleep(1000)
         }
 
@@ -35,7 +37,7 @@ internal class ServerTest {
         fun finish() {
             Thread.sleep(1000)
             target?.stop()
-        }*/
+        }
     }
 
     @Test

@@ -13,18 +13,19 @@ import java.nio.channels.SelectionKey
 import java.nio.channels.Selector
 import java.nio.channels.ServerSocketChannel
 import java.nio.channels.SocketChannel
+import java.util.concurrent.atomic.AtomicBoolean
 
-class Server(
-    private val option: ServerOption,
-    private val contextFactory: ContextFactory<*>,
-    private val resultHandler: (ByteBuffer, SocketChannel) -> Unit
+open class Server(
+    protected val option: ServerOption,
+    protected val contextFactory: ContextFactory<*>,
+    protected val resultHandler: (ByteBuffer, SocketChannel) -> Unit
 ) : Runnable {
     companion object {
         private val logger: Logger = LoggerFactory.getLogger(Server::class.java)
     }
 
     private val selector: Selector = Selector.open()
-    private var isAlive = true
+    private var isAlive = AtomicBoolean(true)
 
     init {
         logger.info("Init server with $option")
@@ -43,15 +44,15 @@ class Server(
     }
 
     override fun run() {
-        if (!isAlive) {
-            throw IllegalStateException("Dead server")
+        if (!isAlive.get()) {
+            throw ServerShutdown()
         }
 
         val serverSocketChannel = initServerSocket()
         selector.registerAccept(serverSocketChannel)
         logger.debug("init Server")
 
-        while (isAlive) {
+        while (isAlive.get()) {
             val select = selector.select(option.timeout.toLong())
             logger.trace("select {} sockets", select)
 
@@ -104,7 +105,7 @@ class Server(
         }
     }
 
-    fun stop() {
-        isAlive = false
+    open fun stop() {
+        isAlive.set(false)
     }
 }
